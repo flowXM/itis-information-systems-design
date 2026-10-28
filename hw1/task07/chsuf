@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+if (($# != 3)); then
+    echo "Использование: $0 каталог .старый_суффикс .новый_суффикс" >&2
+    exit 1
+fi
+directory=$1
+old_suffix=$2
+new_suffix=$3
+
+if [[ ! -d "$directory" ]]; then
+    echo "Ошибка: каталог не найден: $directory" >&2
+    exit 1
+fi
+for suffix in "$old_suffix" "$new_suffix"; do
+    if [[ "$suffix" != .* || "${suffix:1}" == *.* || "$suffix" == */* ]]; then
+        echo "Ошибка: суффикс начинается с точки и не содержит других точек или /." >&2
+        exit 1
+    fi
+done
+[[ "$old_suffix" == "$new_suffix" ]] && exit 0
+directory=$(realpath -- "$directory") || exit 1
+
+result=0
+while IFS= read -r -d '' file; do
+    filename=${file##*/}
+    # Первую букву убираем: начальная точка скрытого файла не суффикс.
+    rest=${filename:1}
+    [[ "$rest" == *.* ]] || continue
+    suffix=.${filename##*.}
+    [[ "$suffix" == "$old_suffix" ]] || continue
+
+    # Раскрытие параметра с заменой только в конце имени.
+    new_name=${filename/%"$old_suffix"/"$new_suffix"}
+    target=${file%/*}/$new_name
+    if [[ -e "$target" || -L "$target" ]]; then
+        echo "Ошибка: файл уже существует, пропускаем: $target" >&2
+        result=1
+        continue
+    fi
+    if mv -- "$file" "$target"; then
+        printf '%s -> %s\n' "$file" "$target"
+    else
+        result=1
+    fi
+done < <(find "$directory" -type f -print0)
+exit "$result"

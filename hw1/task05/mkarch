@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -e
+
+usage() {
+    echo "Использование: $0 -d каталог -n имя_архива" >&2
+    exit 1
+}
+
+directory=
+name=
+while getopts ':d:n:' option; do
+    case "$option" in
+        d) directory=$OPTARG ;;
+        n) name=$OPTARG ;;
+        *) usage ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+[[ $# == 0 && -n "$directory" && -n "$name" ]] || usage
+if [[ ! -d "$directory" ]]; then
+    echo "Ошибка: каталог не найден: $directory" >&2
+    exit 1
+fi
+if [[ "$name" == */* || "$name" == . || "$name" == .. ]]; then
+    echo "Ошибка: укажите имя файла без пути." >&2
+    exit 1
+fi
+if [[ -e "$name" || -L "$name" ]]; then
+    echo "Ошибка: файл уже существует: $name" >&2
+    exit 1
+fi
+
+# Сначала упаковываем содержимое, потом создаём выходной скрипт.
+archive=$(mktemp)
+trap 'rm -f -- "$archive"' EXIT
+tar -czf "$archive" -C "$directory" .
+
+# Кавычки у HEADER сохраняют переменные будущего скрипта как текст.
+cat > "$name" <<'HEADER'
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+output=.
+while getopts ':o:' option; do
+    case "$option" in
+        o) output=$OPTARG ;;
+        *) echo "Использование: $0 [-o каталог]" >&2; exit 1 ;;
+    esac
+done
+shift $((OPTIND - 1))
+if (($# != 0)) || [[ -z "$output" ]]; then
+    echo "Использование: $0 [-o каталог]" >&2
+    exit 1
+fi
+
+mkdir -p -- "$output"
+sed '1,/^__ARCHIVE_BELOW__$/d' "$0" | base64 --decode | tar -xzf - -C "$output"
+echo "Архив распакован в: $output"
+exit 0
+__ARCHIVE_BELOW__
+HEADER
+
+# Текст base64 можно безопасно дописать после кода скрипта.
+base64 "$archive" >> "$name"
+chmod a+x -- "$name"
+echo "Создан архив: $name"

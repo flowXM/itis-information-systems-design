@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+# Поле храним в одном массиве. Ноль обозначает пустую клетку.
+board=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 0)
+empty=15
+moves=0
+
+find_neighbors() {
+    neighbors=()
+    ((empty >= 4)) && neighbors+=("$((empty - 4))")
+    ((empty < 12)) && neighbors+=("$((empty + 4))")
+    ((empty % 4 > 0)) && neighbors+=("$((empty - 1))")
+    ((empty % 4 < 3)) && neighbors+=("$((empty + 1))")
+}
+
+draw_board() {
+    echo '+----+----+----+----+'
+    for ((i = 0; i < 16; i++)); do
+        if ((board[i] == 0)); then
+            printf '|    '
+        else
+            printf '| %2d ' "${board[i]}"
+        fi
+        if ((i % 4 == 3)); then
+            printf '|\n+----+----+----+----+\n'
+        fi
+    done
+}
+
+is_solved() {
+    local i
+    for ((i = 0; i < 15; i++)); do
+        ((board[i] == i + 1)) || return 1
+    done
+    return 0
+}
+
+# Перемешиваем разрешёнными ходами: такое поле точно можно собрать.
+for ((shuffle = 0; shuffle < 1000; shuffle++)); do
+    find_neighbors
+    next=${neighbors[RANDOM % ${#neighbors[@]}]}
+    board[empty]=${board[next]}
+    board[next]=0
+    empty=$next
+done
+# Если случайно получили готовое поле, делаем ещё один ход.
+if is_solved; then
+    board[15]=15
+    board[14]=0
+    empty=14
+fi
+
+while true; do
+    echo "Ход № $((moves + 1))"
+    draw_board
+    find_neighbors
+    printf 'Можно выбрать:'
+    for index in "${neighbors[@]}"; do
+        printf ' %s' "${board[index]}"
+    done
+    printf '\n'
+
+    read -r -p "Ваш ход (q - выход): " answer || exit 0
+    [[ "$answer" == q ]] && exit 0
+    if [[ ! "$answer" =~ ^([1-9]|1[0-5])$ ]]; then
+        echo "Ошибка: введите число от 1 до 15."
+        continue
+    fi
+
+    selected=-1
+    for index in "${neighbors[@]}"; do
+        if [[ "${board[index]}" == "$answer" ]]; then
+            selected=$index
+            break
+        fi
+    done
+    if ((selected == -1)); then
+        echo "Неверный ход: можно передвинуть только соседа пустой клетки."
+        continue
+    fi
+
+    board[empty]=${board[selected]}
+    board[selected]=0
+    empty=$selected
+    moves=$((moves + 1))
+
+    if is_solved; then
+        echo "Вы собрали головоломку за $moves ходов."
+        draw_board
+        exit 0
+    fi
+done

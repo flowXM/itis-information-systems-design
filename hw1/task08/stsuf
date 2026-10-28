@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+if (($# != 1)); then
+    echo "Использование: $0 каталог" >&2
+    exit 1
+fi
+if [[ ! -d "$1" ]]; then
+    echo "Ошибка: каталог не найден: $1" >&2
+    exit 1
+fi
+directory=$(realpath -- "$1") || exit 1
+
+declare -A counts
+while IFS= read -r -d '' file; do
+    filename=${file##*/}
+    rest=${filename:1}
+    if [[ "$rest" == *.* ]]; then
+        suffix=.${filename##*.}
+    else
+        suffix='no suffix'
+    fi
+    counts["$suffix"]=$(( ${counts["$suffix"]:-0} + 1 ))
+done < <(find "$directory" -type f -print0)
+
+# Число ставим первым, чтобы sort легко отсортировал по количеству.
+for suffix in "${!counts[@]}"; do
+    printf '%s\t%s\n' "${counts[$suffix]}" "$suffix"
+done | sort -k1,1nr -k2 | while IFS=$'\t' read -r count suffix; do
+    printf '%s: %s\n' "$suffix" "$count"
+done

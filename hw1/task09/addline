@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+if (($# != 1)); then
+    echo "Использование: $0 каталог" >&2
+    exit 1
+fi
+if [[ ! -d "$1" ]]; then
+    echo "Ошибка: каталог не найден: $1" >&2
+    exit 1
+fi
+directory=$(realpath -- "$1") || exit 1
+username=$(id -un) || exit 1
+today=$(date +%F) || exit 1
+header="Approved $username $today"
+
+temporary=
+trap 'if [[ -n "$temporary" ]]; then rm -f -- "$temporary"; fi' EXIT
+shopt -s nullglob dotglob
+result=0
+
+# Маска раскрывается оболочкой, подкаталоги не обходим.
+for file in "$directory"/*.txt; do
+    [[ -f "$file" && ! -L "$file" ]] || continue
+    temporary=$(mktemp "$directory/.addline.XXXXXX") || exit 1
+
+    # Сначала готовим полное новое содержимое во временном файле.
+    if { printf '%s\n' "$header" && cat -- "$file"; } > "$temporary"; then
+        if chmod --reference="$file" "$temporary" && mv -- "$temporary" "$file"; then
+            echo "Добавлена строка: $file"
+        else
+            result=1
+        fi
+    else
+        echo "Ошибка обработки: $file" >&2
+        result=1
+    fi
+
+    rm -f -- "$temporary"
+    temporary=
+done
+exit "$result"

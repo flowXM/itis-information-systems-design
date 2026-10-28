@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+trap 'printf "\nДля выхода введите q или Q.\n"' INT
+
+# Первая цифра не ноль, остальные добавляем без повторений.
+secret=$((RANDOM % 9 + 1))
+while ((${#secret} < 4)); do
+    digit=$((RANDOM % 10))
+    if [[ "$secret" != *"$digit"* ]]; then
+        secret+=$digit
+    fi
+done
+
+history=()
+echo "Я загадал четырёхзначное число с неповторяющимися цифрами."
+echo "Бык - цифра на своём месте, корова - цифра на другом месте."
+
+while true; do
+    if read -r -p "Попытка $((${#history[@]} + 1)) (q - выход): " answer; then
+        :
+    else
+        # После Ctrl+C продолжаем игру, при конце ввода выходим.
+        read_status=$?
+        if ((read_status > 128)); then
+            continue
+        fi
+        exit 1
+    fi
+
+    [[ "$answer" == q || "$answer" == Q ]] && exit 1
+    if [[ ! "$answer" =~ ^[1-9][0-9]{3}$ ]]; then
+        echo "Ошибка: введите четырёхзначное число, первая цифра не ноль."
+        continue
+    fi
+
+    repeated=0
+    for ((i = 0; i < 4; i++)); do
+        for ((j = i + 1; j < 4; j++)); do
+            if [[ "${answer:i:1}" == "${answer:j:1}" ]]; then
+                repeated=1
+            fi
+        done
+    done
+    if ((repeated)); then
+        echo "Ошибка: цифры не должны повторяться."
+        continue
+    fi
+
+    bulls=0
+    cows=0
+    for ((i = 0; i < 4; i++)); do
+        digit=${answer:i:1}
+        if [[ "$digit" == "${secret:i:1}" ]]; then
+            bulls=$((bulls + 1))
+        elif [[ "$secret" == *"$digit"* ]]; then
+            cows=$((cows + 1))
+        fi
+    done
+
+    echo "Коров - $cows, быков - $bulls"
+    history+=("$((${#history[@]} + 1)). $answer (Коров - $cows, быков - $bulls)")
+    echo "История ходов:"
+    printf '%s\n' "${history[@]}"
+
+    if ((bulls == 4)); then
+        echo "Вы угадали число $secret!"
+        exit 0
+    fi
+done

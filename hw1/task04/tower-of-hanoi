@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+trap 'printf "\nДля выхода введите q или Q.\n"' INT
+
+# Последний элемент массива - вершина стека.
+A=(8 7 6 5 4 3 2 1)
+B=()
+C=()
+moves=0
+
+draw_towers() {
+    local row name length index
+    for ((row = 0; row < 8; row++)); do
+        for name in A B C; do
+            # Ссылка позволяет работать с массивом по его имени.
+            local -n stack="$name"
+            length=${#stack[@]}
+            if ((row < 8 - length)); then
+                printf '| |   '
+            else
+                index=$((7 - row))
+                printf '|%s|   ' "${stack[index]}"
+            fi
+        done
+        printf '\n'
+    done
+    printf '+-+   +-+   +-+\n A     B     C\n'
+}
+
+while true; do
+    draw_towers
+    if read -r -p "Ход № $((moves + 1)) (откуда, куда; q - выход): " answer; then
+        :
+    else
+        read_status=$?
+        if ((read_status > 128)); then
+            continue
+        fi
+        exit 1
+    fi
+
+    # Убираем пробелы и переводим буквы в верхний регистр.
+    answer=${answer//[[:space:]]/}
+    answer=${answer^^}
+    [[ "$answer" == Q ]] && exit 1
+    if [[ ! "$answer" =~ ^[ABC]{2}$ ]]; then
+        echo "Ошибка: введите два имени стека, например AB или a c."
+        continue
+    fi
+
+    from=${answer:0:1}
+    to=${answer:1:1}
+    if [[ "$from" == "$to" ]]; then
+        echo "Ошибка: выберите разные стеки."
+        continue
+    fi
+
+    declare -n source_stack="$from"
+    declare -n target_stack="$to"
+    source_size=${#source_stack[@]}
+    target_size=${#target_stack[@]}
+    if ((source_size == 0)); then
+        echo "Ошибка: стек $from пуст."
+        continue
+    fi
+
+    disk=${source_stack[source_size - 1]}
+    if ((target_size > 0 && disk > target_stack[target_size - 1])); then
+        echo "Такое перемещение запрещено: нельзя класть большее число на меньшее."
+        continue
+    fi
+
+    unset 'source_stack[source_size - 1]'
+    target_stack+=("$disk")
+    moves=$((moves + 1))
+
+    if ((${#B[@]} == 8 || ${#C[@]} == 8)); then
+        draw_towers
+        echo "Победа! Башня перенесена за $moves ходов."
+        exit 0
+    fi
+done

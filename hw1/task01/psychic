@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+# Число ходов, число попаданий и последние результаты.
+total=0
+hits=0
+history=()
+green=$'\e[32m'
+red=$'\e[31m'
+reset=$'\e[0m'
+
+while true; do
+    number=$((RANDOM % 10))
+    echo "Ход № $((total + 1))"
+
+    # При ошибке повторяем ввод, сохраняя загаданное число.
+    while true; do
+        read -r -p "Введите число от 0 до 9 (q - выход): " answer || exit 0
+        case "$answer" in
+            q) exit 0 ;;
+            [0-9]) break ;;
+            *) echo "Ошибка: нужна ровно одна цифра от 0 до 9." ;;
+        esac
+    done
+
+    total=$((total + 1))
+    if [[ "$answer" == "$number" ]]; then
+        echo "Угадали! Загаданное число: $number"
+        hits=$((hits + 1))
+        history+=("${green}${number}${reset}")
+    else
+        echo "Не угадали. Загаданное число: $number"
+        history+=("${red}${number}${reset}")
+    fi
+
+    # Оставляем в массиве только десять последних чисел.
+    if ((${#history[@]} > 10)); then
+        history=("${history[@]: -10}")
+    fi
+
+    hit_percent=$((hits * 100 / total))
+    echo "Угадано: $hit_percent%. Не угадано: $((100 - hit_percent))%."
+    printf 'Числа:'
+    printf ' %s' "${history[@]}"
+    printf '\n\n'
+done
